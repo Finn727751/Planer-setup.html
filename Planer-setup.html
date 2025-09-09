@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Admin Panel - Terminplaner</title>
+<style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f9; color: #333; }
+    header { background: #2c3e50; color: white; padding: 15px; text-align: center; }
+    .container { max-width: 1000px; margin: 20px auto; padding: 20px; }
+    .hidden { display: none; }
+    .section { margin-bottom: 20px; padding: 15px; border-radius: 10px; background: white; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    .section h3 { margin-top: 0; color: #2c3e50; }
+    button { margin-top: 5px; padding: 7px 12px; border: none; border-radius: 5px; cursor: pointer; background: #3498db; color: white; }
+    button:hover { background: #2980b9; }
+    input[type="time"], select, input[type="text"], input[type="number"], input[type="password"] { 
+        width: 100%; padding: 6px; margin: 4px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px;
+    }
+    .flex-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+    .slot { margin: 2px; width: 100%; border: none; border-radius: 5px; padding: 5px; }
+    .slot.free { background: #2ecc71; color: white; }
+    .slot.partial { background: #f39c12; color: white; }
+    .slot.full { background: #e74c3c; color: white; }
+    .password-wrapper { display: flex; align-items: center; }
+    .password-wrapper input { flex: 1; }
+    .toggle-eye { margin-left: 5px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>Terminplaner - Admin Panel</h1>
+</header>
+
+<div class="container">
+
+<div id="loginScreen" class="section">
+    <h2>Admin Login</h2>
+    <div class="password-wrapper">
+        <input type="password" id="adminPassword" placeholder="Passwort">
+        <span class="toggle-eye" onclick="togglePassword()">👁️</span>
+    </div>
+    <button onclick="login()">Login</button>
+</div>
+
+<div id="adminPanel" class="hidden">
+    <h2>Admin Einstellungen</h2>
+    
+    <!-- Öffnungszeiten -->
+    <div class="section">
+        <h3>Öffnungszeiten</h3>
+        <div class="flex-row">
+            <div>Montag: <input type="time" id="startMon"> - <input type="time" id="endMon"></div>
+            <div>Dienstag: <input type="time" id="startTue"> - <input type="time" id="endTue"></div>
+            <div>Mittwoch: <input type="time" id="startWed"> - <input type="time" id="endWed"></div>
+            <div>Donnerstag: <input type="time" id="startThu"> - <input type="time" id="endThu"></div>
+            <div>Freitag: <input type="time" id="startFri"> - <input type="time" id="endFri"></div>
+            <div>Samstag: <input type="time" id="startSat"> - <input type="time" id="endSat"></div>
+            <div>Sonntag: <input type="time" id="startSun"> - <input type="time" id="endSun"></div>
+        </div>
+        <button onclick="closeDay('Sat')">Alle Samstage schließen</button>
+        <button onclick="closeDay('Sun')">Alle Sonntage schließen</button>
+    </div>
+    
+    <!-- Bundesland + Feiertage -->
+    <div class="section">
+        <h3>Bundesland und gesetzliche Feiertage</h3>
+        <select id="state">
+            <option value="">Bundesland wählen</option>
+            <option value="BW">Baden-Württemberg</option>
+            <option value="BY">Bayern</option>
+            <option value="BE">Berlin</option>
+            <option value="BB">Brandenburg</option>
+            <option value="HB">Bremen</option>
+            <option value="HH">Hamburg</option>
+            <option value="HE">Hessen</option>
+            <option value="MV">Mecklenburg-Vorpommern</option>
+            <option value="NI">Niedersachsen</option>
+            <option value="NW">Nordrhein-Westfalen</option>
+            <option value="RP">Rheinland-Pfalz</option>
+            <option value="SL">Saarland</option>
+            <option value="SN">Sachsen</option>
+            <option value="ST">Sachsen-Anhalt</option>
+            <option value="SH">Schleswig-Holstein</option>
+            <option value="TH">Thüringen</option>
+        </select>
+        <button onclick="loadHolidays()">Feiertage übernehmen</button>
+        <div id="holidayList"></div>
+    </div>
+    
+    <!-- Terminarten -->
+    <div class="section">
+        <h3>Terminarten</h3>
+        <div id="appointments">
+            <div>Beratung - 30 Min <button onclick="removeType(this)">Löschen</button></div>
+        </div>
+        <input type="text" id="newTypeName" placeholder="Name der Terminart">
+        <input type="number" id="newTypeDuration" placeholder="Dauer in Minuten">
+        <button onclick="addType()">Hinzufügen</button>
+    </div>
+    
+    <!-- Parallelbuchungen -->
+    <div class="section">
+        <h3>Kapazität (gleichzeitige Termine)</h3>
+        <input type="number" id="capacity" value="1" min="1">
+        <p>Klicke hier die Anzahl deiner Mitarbeiter ein, die gleichzeitig Termine annehmen können.</p>
+    </div>
+    
+    <!-- Übersicht gebuchter Termine -->
+    <div class="section">
+        <h3>Gebuchte Termine</h3>
+        <ul id="bookedList"></ul>
+    </div>
+    
+    <button onclick="switchToCalendar()">Zur Buchungsansicht wechseln</button>
+</div>
+
+<!-- Kalenderansicht -->
+<div id="calendarView" class="hidden section">
+    <h2>Buchungsansicht</h2>
+    <div class="flex-row" id="calendarGrid"></div>
+    <button onclick="backToAdmin()">Zurück zum Admin Panel</button>
+</div>
+
+</div>
+
+<script>
+const adminPass = "1234"; // Passwort
+const weekdays = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"];
+const dayMap = { Montag:"Mon", Dienstag:"Tue", Mittwoch:"Wed", Donnerstag:"Thu", Freitag:"Fri", Samstag:"Sat", Sonntag:"Sun" };
+
+let appointmentsData = JSON.parse(localStorage.getItem("appointmentsData") || "{}");
+let closedDates = JSON.parse(localStorage.getItem("closedDates") || "[]");
+
+function login() {
+    const pw = document.getElementById("adminPassword").value;
+    if (pw === adminPass) {
+        document.getElementById("loginScreen").classList.add("hidden");
+        document.getElementById("adminPanel").classList.remove("hidden");
+        renderBookedList();
+    } else {
+        alert("Falsches Passwort!");
+    }
+}
+function togglePassword() {
+    const input = document.getElementById("adminPassword");
+    input.type = input.type === "password" ? "text" : "password";
+}
+
+function closeDay(dayId) {
+    document.getElementById("start"+dayId).value = "";
+    document.getElementById("end"+dayId).value = "";
+}
+
+function loadHolidays() {
+    const state = document.getElementById("state").value;
+    const holidays = {
+        BW: ["01.01","06.01","10.04"], BY: ["01.01","06.01","10.04"], 
+        BE: ["01.01","10.04"], BB: ["01.01","10.04"], HB: ["01.01","10.04"], 
+        HH: ["01.01","10.04"], HE: ["01.01","10.04"], MV: ["01.01","10.04"], 
+        NI: ["01.01","10.04"], NW: ["01.01","10.04"], RP: ["01.01","10.04"], 
+        SL: ["01.01","10.04"], SN: ["01.01","10.04"], ST: ["01.01","10.04"], 
+        SH: ["01.01","10.04"], TH: ["01.01","10.04"]
+    };
+    if(holidays[state]) {
+        closedDates = holidays[state];
+        localStorage.setItem("closedDates", JSON.stringify(closedDates));
+        document.getElementById("holidayList").innerText = "Geschlossen an: "+closedDates.join(", ");
+    } else {
+        document.getElementById("holidayList").innerText = "Keine Feiertage gefunden";
+    }
+}
+
+function addType() {
+    const name = document.getElementById("newTypeName").value;
+    const duration = document.getElementById("newTypeDuration").value;
+    if (name && duration) {
+        const div = document.createElement("div");
+        div.innerHTML = `${name} - ${duration} Min <button onclick="removeType(this)">Löschen</button>`;
+        document.getElementById("appointments").appendChild(div);
+    }
+}
+function removeType(button) { button.parentElement.remove(); }
+
+function renderCalendar() {
+    const grid = document.getElementById("calendarGrid");
+    grid.innerHTML = "";
+    const capacity = parseInt(document.getElementById("capacity").value) || 1;
+    weekdays.forEach(day=>{
+        const id = dayMap[day];
+        const start = document.getElementById("start"+id).value;
+        const end = document.getElementById("end"+id).value;
+        const dayDiv = document.createElement("div");
+        dayDiv.innerHTML = `<h4>${day}</h4>`;
+        if (!start || !end) {
+            dayDiv.innerHTML += "<p>Geschlossen</p>";
+        } else {
+            const startMin = parseInt(start.split(":")[0])*60 + parseInt(start.split(":")[1]);
+            const endMin = parseInt(end.split(":")[0])*60 + parseInt(end.split(":")[1]);
+            for(let t=startMin;t<endMin;t+=30){
+                const h = String(Math.floor(t/60)).padStart(2,"0");
+                const m = String(t%60).padStart(2,"0");
+                const key = day+"-"+h+":"+m;
+                const btn = document.createElement("button");
+                btn.className="slot";
+                btn.textContent = h+":"+m;
+                const count = appointmentsData[key] ? appointmentsData[key].length : 0;
+                if(count >= capacity) { btn.classList.add("full"); btn.disabled=true; }
+                else if(count > 0) { btn.classList.add("partial"); btn.onclick=()=>bookSlot(key); }
+                else { btn.classList.add("free"); btn.onclick=()=>bookSlot(key); }
+                dayDiv.appendChild(btn);
+            }
+        }
+        grid.appendChild(dayDiv);
+    });
+}
+
+function bookSlot(key) {
+    const types = Array.from(document.querySelectorAll("#appointments div")).map(d=>d.textContent.replace("Löschen","").trim());
+    if(types.length===0){ alert("Keine Terminarten definiert!"); return; }
+    const chosen = prompt("Terminart wählen:\n"+types.map((t,i)=>`${i+1}. ${t.split('-')[0].trim()}`).join("\n"));
+    const idx = parseInt(chosen)-1;
+    if(isNaN(idx)||!types[idx]) return;
+    const type = types[idx];
+    const duration = parseInt(type.match(/(\d+)/)[0]);
+    const startH = parseInt(key.split("-")[1].split(":")[0]);
+    const startM = parseInt(key.split("-")[1].split(":")[1]);
+    const startMin = startH*60+startM;
+    const slotsNeeded = Math.ceil(duration/30);
+    const day = key.split("-")[0];
+    const capacity = parseInt(document.getElementById("capacity").value) || 1;
+    for(let i=0;i<slotsNeeded;i++){
+        const k = day+"-"+String(Math.floor((startMin+i*30)/60)).padStart(2,"0")+":"+String((startMin+i*30)%60).padStart(2,"0");
+        const arr = appointmentsData[k] || [];
+        if(arr.length>=capacity) { alert("Nicht genug Kapazität für "+type+"!"); return; }
+    }
+    for(let i=0;i<slotsNeeded;i++){
+        const k = day+"-"+String(Math.floor((startMin+i*30)/60)).padStart(2,"0")+":"+String((startMin+i*30)%60).padStart(2,"0");
+        if(!appointmentsData[k]) appointmentsData[k]=[];
+        appointmentsData[k].push(type.split("-")[0].trim());
+    }
+    localStorage.setItem("appointmentsData", JSON.stringify(appointmentsData));
+    renderCalendar();
+    renderBookedList();
+}
+
+function renderBookedList(){
+    const list=document.getElementById("bookedList");
+    list.innerHTML="";
+    Object.entries(appointmentsData).forEach(([k,v])=>{
+        v.forEach(val=>{
+            const li=document.createElement("li");
+            li.textContent=k+" → "+val;
+            list.appendChild(li);
+        });
+    });
+}
+
+function switchToCalendar() {
+    document.getElementById("adminPanel").classList.add("hidden");
+    document.getElementById("calendarView").classList.remove("hidden");
+    renderCalendar();
+}
+function backToAdmin() {
+    document.getElementById("calendarView").classList.add("hidden");
+    document.getElementById("adminPanel").classList.remove("hidden");
+    renderBookedList();
+}
+</script>
+</body>
+</html>
